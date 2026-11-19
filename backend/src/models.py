@@ -81,6 +81,34 @@ class SchoolReview(Base):
     analysis_id:Mapped[int]=mapped_column(ForeignKey('school_analyses.id'),unique=True)
     noise_note:Mapped[str]=mapped_column(String(240))
     decision:Mapped[str]=mapped_column(String(120))
+class BlindSheet(Base):
+    __tablename__='blind_sheets'
+    __table_args__=(UniqueConstraint('request_key'),UniqueConstraint('analysis_id','assignee_id'))
+    id:Mapped[int]=mapped_column(primary_key=True)
+    cruise_id:Mapped[int]=mapped_column(ForeignKey('cruises.id'))
+    analysis_id:Mapped[int]=mapped_column(ForeignKey('school_analyses.id'))
+    data_version:Mapped[int]=mapped_column(Integer)
+    assignee_id:Mapped[int]=mapped_column(ForeignKey('users.id'))
+    issued_by:Mapped[int]=mapped_column(ForeignKey('users.id'))
+    request_key:Mapped[str]=mapped_column(String(64))
+    status:Mapped[str]=mapped_column(String(20),default='issued')
+    per_class:Mapped[int]=mapped_column(Integer)
+    fish_total:Mapped[int]=mapped_column(Integer,default=0)
+    fish_correct:Mapped[int]=mapped_column(Integer,default=0)
+    noise_total:Mapped[int]=mapped_column(Integer,default=0)
+    noise_correct:Mapped[int]=mapped_column(Integer,default=0)
+    created_at:Mapped[datetime]=mapped_column(DateTime(timezone=True),default=now)
+    submitted_at:Mapped[datetime|None]=mapped_column(DateTime(timezone=True),nullable=True)
+class BlindSheetItem(Base):
+    __tablename__='blind_sheet_items'
+    __table_args__=(UniqueConstraint('sheet_id','echo_id'),)
+    id:Mapped[int]=mapped_column(primary_key=True)
+    sheet_id:Mapped[int]=mapped_column(ForeignKey('blind_sheets.id'))
+    echo_id:Mapped[int]=mapped_column(ForeignKey('echoes.id'))
+    order_index:Mapped[int]=mapped_column(Integer)
+    predicted_label:Mapped[int]=mapped_column(Integer)
+    answer:Mapped[str|None]=mapped_column(String(10),nullable=True)
+    correct:Mapped[bool|None]=mapped_column(Boolean,nullable=True)
 class Net(Base):
     __tablename__='nets'
     id:Mapped[int]=mapped_column(primary_key=True)

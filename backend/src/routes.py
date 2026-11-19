@@ -6,16 +6,17 @@ from .models import *
 from .schemas import *
 from .auth import current,editor,supervisor,issue,password_hash
 from .common import dump,get
-from . import navigation_service as nav,transect_service as transect,school_service as school,biology_service as biology,resurvey_service as resurvey,release_service as release
+from . import navigation_service as nav,transect_service as transect,school_service as school,biology_service as biology,resurvey_service as resurvey,release_service as release,blind_service as blind
 router=APIRouter()
 @router.post('/auth/login')
 def login(data:Login,db=Depends(session)):
     row=db.scalar(select(User).where(User.username==data.username))
     if not row or not hmac.compare_digest(row.password,password_hash(data.password)):raise HTTPException(401,'账号或密码错误')
-    return {'token':issue(row),'username':row.username,'role':row.role}
+    return {'token':issue(row),'id':row.id,'username':row.username,'role':row.role}
 @router.get('/workspace')
 def workspace(db=Depends(session),user=Depends(current)):
-    return {m.__tablename__:[dump(r) for r in db.scalars(select(m).order_by(m.id))] for m in [Boat,Cruise,NavigationClosure,Transect,Echo,SchoolAnalysis,SchoolReview,Net,NetCalibration,BioSample,MissingInterval,Resurvey,SurveyRelease]}
+    data={m.__tablename__:[dump(r) for r in db.scalars(select(m).order_by(m.id))] for m in [Boat,Cruise,NavigationClosure,Transect,Echo,SchoolAnalysis,SchoolReview,Net,NetCalibration,BioSample,MissingInterval,Resurvey,SurveyRelease]}
+    return blind.workspace_scope(db,user,data)
 @router.post('/cruises')
 def create(data:CruiseInput,db=Depends(session),user=Depends(editor)):return nav.create(db,data,user)
 @router.patch('/cruises/{id}/schedule')
@@ -36,6 +37,12 @@ def simulate(id:int,db=Depends(session),user=Depends(editor)):return transect.si
 def analyze(data:AnalysisInput,db=Depends(session),user=Depends(editor)):return school.enqueue(db,data,user)
 @router.post('/schools/{id}/review')
 def review(id:int,data:ReviewInput,db=Depends(session),user=Depends(supervisor)):return school.review(db,id,data,user)
+@router.post('/blind-sheets')
+def blind_issue(data:BlindIssueInput,db=Depends(session),user=Depends(supervisor)):return blind.issue(db,data,user)
+@router.get('/blind-sheets/{id}')
+def blind_detail(id:int,db=Depends(session),user=Depends(current)):return blind.detail(db,id,user)
+@router.post('/blind-sheets/{id}/submit')
+def blind_submit(id:int,data:BlindSubmitInput,db=Depends(session),user=Depends(current)):return blind.submit(db,id,data,user)
 @router.post('/calibrations')
 def calibration(data:CalibrationInput,db=Depends(session),user=Depends(supervisor)):return biology.calibrate(db,data,user)
 @router.post('/samples')
@@ -51,6 +58,9 @@ def cancel(id:int,db=Depends(session),user=Depends(supervisor)):return resurvey.
 @router.post('/releases')
 def freeze(data:ReleaseInput,db=Depends(session),user=Depends(supervisor)):return release.freeze(db,data,user)
 @router.get('/releases/{id}')
-def frozen(id:int,db=Depends(session),user=Depends(current)):return dump(get(db,SurveyRelease,id))
+def frozen(id:int,db=Depends(session),user=Depends(current)):
+    row=get(db,SurveyRelease,id)
+    if not blind.release_visible(db,user,row):raise HTTPException(403,'该图层含未交卷盲判样本，交卷后可见')
+    return dump(row)
 @router.get('/audit')
 def audit(db=Depends(session),user=Depends(supervisor)):return [dump(v) for v in db.scalars(select(Audit).order_by(Audit.id.desc()).limit(100))]

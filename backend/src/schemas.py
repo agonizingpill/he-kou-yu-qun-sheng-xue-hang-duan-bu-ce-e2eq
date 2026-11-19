@@ -1,4 +1,5 @@
 from datetime import datetime,date
+from typing import Literal
 from pydantic import BaseModel,Field,model_validator
 class Login(BaseModel):
     username:str
@@ -47,6 +48,21 @@ class AnalysisInput(BaseModel):
 class ReviewInput(BaseModel):
     noise_note:str=Field(min_length=1,max_length=240)
     decision:str=Field(min_length=4,max_length=120)
+class BlindIssueInput(BaseModel):
+    analysis_id:int
+    assignee_id:int
+    per_class:int=Field(default=8,ge=2,le=20)
+    request_key:str=Field(min_length=8,max_length=64)
+class BlindAnswer(BaseModel):
+    item_id:int
+    answer:Literal['fish','noise']
+class BlindSubmitInput(BaseModel):
+    answers:list[BlindAnswer]=Field(min_length=1,max_length=200)
+    @model_validator(mode='after')
+    def unique(self):
+        ids=[a.item_id for a in self.answers]
+        if len(ids)!=len(set(ids)):raise ValueError('同一道题不能重复作答')
+        return self
 class CalibrationInput(BaseModel):
     net_id:int
     measured_mm:float=Field(gt=0,le=100)
